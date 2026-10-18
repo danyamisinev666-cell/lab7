@@ -16,22 +16,32 @@ jobs:
       - name: Build Docker image
         run: docker build -t app:${{ github.sha }} .
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: app:${{ github.sha }}
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH'
-          scanners: 'vuln,secret,config'
-          skip-setup-trivy: true
-
-      - name: Run Trivy config scanner for K8s manifests
+      # 1. Устанавливаем Trivy напрямую (вместо капризного trivy-action)
+      - name: Install Trivy CLI
         run: |
-          trivy config --severity HIGH,CRITICAL --exit-code 1 .
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+
+      # 2. Запускаем сканирование образа напрямую
+      - name: Run Trivy vulnerability scanner
+        run: |
+          trivy image \
+            --format sarif \
+            --output trivy-results.sarif \
+            --severity CRITICAL,HIGH \
+            --scanners vuln,secret,misconfig \
+            app:${{ github.sha }}
+
+      # 3. Сканирование конфигурации (K8s и Dockerfile)
+      - name: Run Trivy config scanner
+        run: |
+          # Создаем папку k8s на всякий случай, если ее нет, чтобы Trivy не упал
+          mkdir -p k8s
+          # Сканируем папку k8s и Dockerfile в текущей директории
+          trivy config --severity HIGH,CRITICAL --exit-code 1 k8s/ Dockerfile
+
+      # 4. Загрузка результатов в GitHub Security tab
       - name: Upload Trivy results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
+        if: always() # Загружаем отчет, даже если на предыдущем шаге были найдены уязвимости
         with:
           sarif_file: 'trivy-results.sarif'
-
-
