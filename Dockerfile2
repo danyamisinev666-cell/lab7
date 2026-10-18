@@ -1,0 +1,20 @@
+# Базовый образ с известными уязвимостями (специально старый)
+FROM node:14-alpine
+
+# Установка утилит (увеличиваем поверхность атаки)
+RUN apk add --no-cache curl wget
+
+# Секрет, зашитый в образ (запрещено!)
+ENV API_KEY="sk-test-12345-very-secret"
+
+# Добавление утилиты с CVE (пример)
+RUN npm install -g lodash@4.17.19
+
+# Запуск от root (плохая практика)
+WORKDIR /app
+COPY app.js .
+
+# Приложение слушает на 3000
+EXPOSE 3000
+
+CMD ["node", "app.js"]
