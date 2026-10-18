@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vuln-app-secure
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: vuln-app
+  template:
+    metadata:
+      labels:
+        app: vuln-app
+    spec:
+      securityContext:                # Политика на уровне Pod
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: app
+        image: vuln-app-secure:latest
+        ports:
+        - containerPort: 3000
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+            add: ["NET_BIND_SERVICE"]   # Единственное нужное capability
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        # hostPath удален — используем emptyDir или PVC при необходимости
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
